@@ -16,13 +16,15 @@ import javax.swing.text.Document;
  *  	public makePopupMenu
  *  	private openFile
  *  	private saveFile
+ *  	private checkTitle
+ *  	private makeSaveWarning
  * 
  * Inner Classes:
  * 		NewAction
  * 		OpenAction
  * 		SaveAction
  * 		CloseAction
- * 
+ * 		RedTextDocumentListener
  */
 public class MenuCreator {
 	
@@ -126,64 +128,16 @@ public class MenuCreator {
 			ex.printStackTrace();
 		}
 	}
-	private boolean checkTitle(){	// Returns true if the title of the file and therefore the JFrame is "Untitled"
+	private boolean checkTitle(){
 		return (guiFrame.getTitle().compareTo("Untitled") == 0);
 	}
-	private JDialog createWarning(String warning){
-		JDialog tempDialog = new JDialog();
-		JPanel tempPanel = new JPanel();
-		JLabel tempLabel = new JLabel(warning);
-		tempPanel.add(tempLabel);
-		tempDialog.getContentPane().add(BorderLayout.NORTH, tempPanel);
-		tempDialog.setSize(300, 100);
-		tempDialog.setLocation(500, 275);
-		tempDialog.setVisible(true);
-		tempDialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
-		return tempDialog;
-	}
-	private int makeSaveWarning(){
-		//replace this with a JOptionPane
+	int makeSaveWarning(){
 		JOptionPane warningPane = new JOptionPane();
 		Object[] options = {"Save",
         "Don't Save", "Cancel"};
-		 return JOptionPane.showOptionDialog(guiFrame,
+		return JOptionPane.showOptionDialog(guiFrame,
 			"There are unsaved changes to your work. Do you wish to save?", "Warning",
 			JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE, null, options, options[0]); 
-		/*final JDialog tempDialog = new JDialog();
-		JPanel tempPanel = new JPanel();
-		JLabel tempLabel = new JLabel("Do you want to save you changes to " + guiFrame.getTitle());
-		JButton save = new JButton("Save");
-		save.addActionListener(new ActionListener(){
-			public void actionPerformed(ActionEvent e){
-				new SaveAction().actionPerformed(e); // documentHasChanged will be set to true here
-				tempDialog.dispose();
-			}
-		});
-		JButton dontSave = new JButton("Don't Save");
-		dontSave.addActionListener(new ActionListener(){
-			public void actionPerformed(ActionEvent e){
-				tempDialog.dispose();
-				documentHasChanged = false;
-			}
-		});
-		JButton cancel = new JButton("Cancel");
-		cancel.addActionListener(new ActionListener(){
-			public void actionPerformed(ActionEvent e){
-				tempDialog.dispose();
-				documentHasChanged = true;
-				// By setting documentHasChanged to true, there is a way to determine whether or not to execute the actions that are selected
-			}
-		});
-		tempPanel.add(tempLabel);
-		tempPanel.add(save);
-		tempPanel.add(dontSave);
-		tempPanel.add(cancel);
-		tempDialog.getContentPane().add(tempPanel);
-		tempDialog.setSize(300, 100);
-		tempDialog.setLocation(500, 275);
-		tempDialog.setVisible(true);
-		tempDialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
-		*/
 	}
 	
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
