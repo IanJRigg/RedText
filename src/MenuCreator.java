@@ -141,53 +141,91 @@ public class MenuCreator {
 		tempDialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
 		return tempDialog;
 	}
-	private void makeSaveWarning(){
-		JDialog tempDialog = new JDialog();
+	private int makeSaveWarning(){
+		//replace this with a JOptionPane
+		JOptionPane warningPane = new JOptionPane();
+		Object[] options = {"Save",
+        "Don't Save", "Cancel"};
+		 return JOptionPane.showOptionDialog(guiFrame,
+			"There are unsaved changes to your work. Do you wish to save?", "Warning",
+			JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE, null, options, options[0]); 
+		/*final JDialog tempDialog = new JDialog();
 		JPanel tempPanel = new JPanel();
 		JLabel tempLabel = new JLabel("Do you want to save you changes to " + guiFrame.getTitle());
 		JButton save = new JButton("Save");
-		save.addActionListener(new SaveAction());
+		save.addActionListener(new ActionListener(){
+			public void actionPerformed(ActionEvent e){
+				new SaveAction().actionPerformed(e); // documentHasChanged will be set to true here
+				tempDialog.dispose();
+			}
+		});
 		JButton dontSave = new JButton("Don't Save");
-		dontSave.addActionListener();
+		dontSave.addActionListener(new ActionListener(){
+			public void actionPerformed(ActionEvent e){
+				tempDialog.dispose();
+				documentHasChanged = false;
+			}
+		});
 		JButton cancel = new JButton("Cancel");
+		cancel.addActionListener(new ActionListener(){
+			public void actionPerformed(ActionEvent e){
+				tempDialog.dispose();
+				documentHasChanged = true;
+				// By setting documentHasChanged to true, there is a way to determine whether or not to execute the actions that are selected
+			}
+		});
 		tempPanel.add(tempLabel);
-		tempDialog.getContentPane().add(BorderLayout.NORTH, tempPanel);
+		tempPanel.add(save);
+		tempPanel.add(dontSave);
+		tempPanel.add(cancel);
+		tempDialog.getContentPane().add(tempPanel);
 		tempDialog.setSize(300, 100);
 		tempDialog.setLocation(500, 275);
 		tempDialog.setVisible(true);
 		tempDialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
+		*/
 	}
 	
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	
 	class NFileAction extends AbstractAction{	
 		public void actionPerformed(ActionEvent e) {
-			final JDialog saveDialog = createWarning("Do you wish to save before creating a new file?");
-			JButton save = new JButton("Save");
-			JButton dontSave = new JButton("Don't Save");
-			JPanel savePanel = new JPanel();
-			save.addActionListener(new SaveAsAction());
-			dontSave.addActionListener(new ActionListener(){
-				public void actionPerformed(ActionEvent e){
-					saveDialog.dispose();
-				}
-			});
-			savePanel.add(save);
-			savePanel.add(dontSave);
-			saveDialog.add(BorderLayout.CENTER, savePanel);
-			pane.setText("");
+			int warningOption = makeSaveWarning();
+			if(warningOption == JOptionPane.YES_OPTION)
+				new SaveAction().actionPerformed(e);
+			else if(warningOption == JOptionPane.NO_OPTION)
+				documentHasChanged = false;
+			else{
+				documentHasChanged = true;
+				return;
+			}
+			if(!documentHasChanged)	
+				pane.setText("");
+				documentHasChanged = false;
 		}
 	}
 	class OpenAction extends AbstractAction{
 		public void actionPerformed(ActionEvent e){
-			JFileChooser fC = new JFileChooser();
-			int option = fC.showOpenDialog(null);
-			if(option == JFileChooser.APPROVE_OPTION){
-				File target = fC.getSelectedFile();
-				File directory = fC.getCurrentDirectory();
-				pane.setText("");
-				openFile(target, directory);
-				guiFrame.setTitle(target.getName());
+			int warningOption = makeSaveWarning();
+			if(warningOption == JOptionPane.YES_OPTION)
+				new SaveAction().actionPerformed(e);
+			else if(warningOption == JOptionPane.NO_OPTION)
+				documentHasChanged = false;
+			else{
+				documentHasChanged = true;
+				return;
+			}
+			if(!documentHasChanged){
+				JFileChooser fC = new JFileChooser();
+				int option = fC.showOpenDialog(null);
+				if(option == JFileChooser.APPROVE_OPTION){
+					File target = fC.getSelectedFile();
+					File directory = fC.getCurrentDirectory();
+					pane.setText("");
+					openFile(target, directory);
+					guiFrame.setTitle(target.getName());
+					documentHasChanged = false;
+				}
 			}
 		}
 	}// End OpenAction
@@ -204,6 +242,7 @@ public class MenuCreator {
 			}else{
 				saveFile(target, directory);
 			}
+			documentHasChanged = false;
 		}
 	}
 	class SaveAsAction extends SaveAction{
@@ -215,33 +254,17 @@ public class MenuCreator {
 	}
 	class CloseAction extends AbstractAction{ // Close Action is to be unextendable
 		public void actionPerformed(ActionEvent e){
-			final JDialog exitDialog = new JDialog();
-			JPanel exitPanel = new JPanel();
-			JLabel exitLabel = new JLabel("Are you sure you wish to exit RedText?");
-			JButton exit = new JButton("Yes");
-			JButton dontExit = new JButton("No");
-			exit.addActionListener(
-				new ActionListener(){
-					public void actionPerformed(ActionEvent e){
-						System.exit(0);
-					}
-				}
-			);
-			dontExit.addActionListener(
-				new ActionListener(){
-					public void actionPerformed(ActionEvent e){
-						exitDialog.dispose();
-					}
-				}
-			);
-			exitPanel.add(exitLabel);
-			exitPanel.add(exit);
-			exitPanel.add(dontExit);
-			exitDialog.getContentPane().add(exitPanel);
-			exitDialog.setSize(300, 100);
-			exitDialog.setLocation(500, 275);
-			exitDialog.setVisible(true);
-			exitDialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
+			int warningOption = makeSaveWarning();
+			if(warningOption == JOptionPane.YES_OPTION)
+				new SaveAction().actionPerformed(e);
+			else if(warningOption == JOptionPane.NO_OPTION)
+				documentHasChanged = false;
+			else{
+				documentHasChanged = true;
+				return;
+			}
+			if(!documentHasChanged)
+				System.exit(0);
 		}
 	}
 	class RedTextDocumentListener implements DocumentListener{
