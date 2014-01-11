@@ -49,7 +49,7 @@ public class MenuCreator {
 		guiFrame = frame;
 	}
 	public JMenuBar makeMenu(){
-		NFileAction nAction = new NFileAction();
+		NewFileAction nAction = new NewFileAction();
 		nAction.putValue(Action.NAME, "New");
 		
 		OpenAction oAction = new OpenAction();
@@ -131,44 +131,36 @@ public class MenuCreator {
 	private boolean checkTitle(){
 		return (guiFrame.getTitle().compareTo("Untitled") == 0);
 	}
-	int makeSaveWarning(){
-		JOptionPane warningPane = new JOptionPane();
-		Object[] options = {"Save",
-        "Don't Save", "Cancel"};
-		return JOptionPane.showOptionDialog(guiFrame,
-			"There are unsaved changes to your work. Do you wish to save?", "Warning",
-			JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE, null, options, options[0]); 
-	}
-	
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-	
-	class NFileAction extends AbstractAction{	
-		public void actionPerformed(ActionEvent e) {
-			int warningOption = makeSaveWarning();
+	private void makeSaveWarning(ActionEvent e){
+		if(documentHasChanged){
+			JOptionPane warningPane = new JOptionPane();
+			Object[] options = {"Save", "Don't Save", "Cancel"};
+			int warningOption = JOptionPane.showOptionDialog(guiFrame,
+				"There are unsaved changes to your work. Do you wish to save?", "Warning",
+				JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE, null, options, options[0]); 
 			if(warningOption == JOptionPane.YES_OPTION)
 				new SaveAction().actionPerformed(e);
 			else if(warningOption == JOptionPane.NO_OPTION)
 				documentHasChanged = false;
-			else{
+			else
 				documentHasChanged = true;
-				return;
-			}
+		}
+	}
+	
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	
+	class NewFileAction extends AbstractAction{	
+		public void actionPerformed(ActionEvent e) {
+			makeSaveWarning(e);
 			if(!documentHasChanged)	
 				pane.setText("");
+				guiFrame.setTitle("Untitled");
 				documentHasChanged = false;
 		}
 	}
 	class OpenAction extends AbstractAction{
 		public void actionPerformed(ActionEvent e){
-			int warningOption = makeSaveWarning();
-			if(warningOption == JOptionPane.YES_OPTION)
-				new SaveAction().actionPerformed(e);
-			else if(warningOption == JOptionPane.NO_OPTION)
-				documentHasChanged = false;
-			else{
-				documentHasChanged = true;
-				return;
-			}
+			makeSaveWarning(e);
 			if(!documentHasChanged){
 				JFileChooser fC = new JFileChooser();
 				int option = fC.showOpenDialog(null);
@@ -192,10 +184,10 @@ public class MenuCreator {
 					target = fileChooser.getSelectedFile();
 					directory = fileChooser.getCurrentDirectory();
 					saveFile(target, directory);
+					guiFrame.setTitle(target.getName());
 				}
-			}else{
+			}else
 				saveFile(target, directory);
-			}
 			documentHasChanged = false;
 		}
 	}
@@ -208,15 +200,7 @@ public class MenuCreator {
 	}
 	class CloseAction extends AbstractAction{ // Close Action is to be unextendable
 		public void actionPerformed(ActionEvent e){
-			int warningOption = makeSaveWarning();
-			if(warningOption == JOptionPane.YES_OPTION)
-				new SaveAction().actionPerformed(e);
-			else if(warningOption == JOptionPane.NO_OPTION)
-				documentHasChanged = false;
-			else{
-				documentHasChanged = true;
-				return;
-			}
+			makeSaveWarning(e);
 			if(!documentHasChanged)
 				System.exit(0);
 		}
