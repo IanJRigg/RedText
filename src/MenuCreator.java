@@ -1,17 +1,8 @@
-import java.awt.BorderLayout;
-import java.awt.event.*;
-import java.io.*;
-
-import javax.swing.*;
-import javax.swing.event.DocumentEvent;
-import javax.swing.event.DocumentListener;
-import javax.swing.text.BadLocationException;
-import javax.swing.text.DefaultEditorKit;
-import javax.swing.text.Document;
-
 /* Class summary:
+ * Import Statements
  * Method Declarations:
  *  	public MenuCreator
+ *  	public makeMenuItems
  *  	public makeMenu
  *  	public makePopupMenu
  *  	private openFile
@@ -26,12 +17,24 @@ import javax.swing.text.Document;
  * 		CloseAction
  * 		RedTextDocumentListener
  */
+import java.awt.BorderLayout;
+import java.awt.event.*;
+import java.io.*;
+import java.util.Iterator;
+import java.util.LinkedList;
+import javax.swing.*;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
+import javax.swing.text.BadLocationException;
+import javax.swing.text.DefaultEditorKit;
+import javax.swing.text.Document;
+
 public class MenuCreator {
 	
-	JTextPane pane;
-	JFrame guiFrame;
-	File target;
-	File directory;
+	private JTextPane pane;
+	private JFrame guiFrame;
+	private File target;
+	private File directory;
 	private JMenuBar menuBar;
 	private JPopupMenu popMenu;
 	private JMenu fileMenu;
@@ -41,65 +44,87 @@ public class MenuCreator {
 	public MenuCreator(JTextPane text, JFrame frame){
 		menuBar = new JMenuBar();
 		popMenu = new JPopupMenu();
-		fileMenu = new JMenu("File    ");
-		editMenu = new JMenu("Edit    ");
+		fileMenu = new JMenu("File        ");
+		editMenu = new JMenu("Edit        ");
 		pane = text;
 		pane.getDocument().addDocumentListener(new RedTextDocumentListener());
 		documentHasChanged = false;
 		guiFrame = frame;
 	}
 	public JMenuBar makeMenu(){
-		NewFileAction nAction = new NewFileAction();
-		nAction.putValue(Action.NAME, "New");
-		
-		OpenAction oAction = new OpenAction();
-		oAction.putValue(Action.NAME, "Open");
-		
-		SaveAction sAction = new SaveAction();
-		sAction.putValue(Action.NAME, "Save");
-		
-		SaveAsAction sAAction = new SaveAsAction();
-		sAAction.putValue(Action.NAME, "Save As");
-		
-		CloseAction cAction = new CloseAction();
-		cAction.putValue(Action.NAME, "Close");
-		
-		Action cutAction = new DefaultEditorKit.CutAction();
-		cutAction.putValue(Action.NAME, "Cut");
-		
-		Action copyAction = new DefaultEditorKit.CopyAction();
-		copyAction.putValue(Action.NAME, "Copy");
-		
-		Action pasteAction = new DefaultEditorKit.PasteAction();
-		pasteAction.putValue(Action.NAME, "Paste");
-		
-		JMenuItem newItem = new JMenuItem(nAction);
-		JMenuItem openItem = new JMenuItem(oAction);
-		JMenuItem saveItem = new JMenuItem(sAction);
-		JMenuItem saveAsItem = new JMenuItem(sAAction);
-		JMenuItem closeItem = new JMenuItem(cAction);
-		JMenuItem cutItem = new JMenuItem(cutAction);
-		JMenuItem copyItem = new JMenuItem(copyAction);
-		JMenuItem pasteItem = new JMenuItem(pasteAction);
-		
-		fileMenu.add(newItem);
-		fileMenu.add(openItem);
-		fileMenu.add(saveItem);
-		fileMenu.add(saveAsItem);
+		LinkedList<JMenuItem> items = makeMenuItems();
+		Iterator<JMenuItem> it = items.listIterator();
+		int itemsCounter = 0;
+		while(itemsCounter < 4){
+			fileMenu.add(it.next());
+			itemsCounter++;
+		}
 		fileMenu.add(new JSeparator());
-		fileMenu.add(new JSeparator());
-		fileMenu.add(closeItem);
-		
-		editMenu.add(cutItem);
-		editMenu.add(copyItem);
-		editMenu.add(pasteItem);
-		
+		fileMenu.add(it.next());
+		while(itemsCounter < 7){
+			editMenu.add(it.next());
+			itemsCounter++;
+		}
+		editMenu.add(new JSeparator());
+		editMenu.add(it.next());
 		menuBar.add(fileMenu);
 		menuBar.add(editMenu);
 		return menuBar;
 	}
 	public JPopupMenu makePopupMenu(){
 		return popMenu;
+	}
+	private LinkedList<JMenuItem> makeMenuItems(){
+		LinkedList<JMenuItem> menuItems = new LinkedList<JMenuItem>();
+		NewFileAction newAction = new NewFileAction();
+		OpenAction openAction = new OpenAction();
+		SaveAction saveAction = new SaveAction();
+		SaveAsAction saveAsAction = new SaveAsAction();
+		CloseAction closeAction = new CloseAction();
+		Action cutAction = new DefaultEditorKit.CutAction();
+		Action copyAction = new DefaultEditorKit.CopyAction();
+		Action pasteAction = new DefaultEditorKit.PasteAction();
+		SelectAllAction selectAction = new SelectAllAction();
+		
+		newAction.putValue(Action.NAME, "New");
+		openAction.putValue(Action.NAME, "Open");
+		saveAction.putValue(Action.NAME, "Save");
+		saveAsAction.putValue(Action.NAME, "Save As");
+		closeAction.putValue(Action.NAME, "Close");
+		cutAction.putValue(Action.NAME, "Cut");
+		copyAction.putValue(Action.NAME, "Copy");
+		pasteAction.putValue(Action.NAME, "Paste");
+		selectAction.putValue(Action.NAME, "Select All");
+		
+		JMenuItem newItem = new JMenuItem(newAction);
+		JMenuItem openItem = new JMenuItem(openAction);
+		JMenuItem saveItem = new JMenuItem(saveAction);
+		JMenuItem saveAsItem = new JMenuItem(saveAsAction);
+		JMenuItem closeItem = new JMenuItem(closeAction);
+		JMenuItem cutItem = new JMenuItem(cutAction);
+		JMenuItem copyItem = new JMenuItem(copyAction);
+		JMenuItem pasteItem = new JMenuItem(pasteAction);
+		JMenuItem selectAllItem = new JMenuItem(selectAction);
+		
+		newItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_N, KeyEvent.CTRL_MASK));
+		openItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_O, ActionEvent.CTRL_MASK));
+		saveItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_S, ActionEvent.CTRL_MASK));
+		saveAsItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_S, ActionEvent.CTRL_MASK));
+		copyItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_C, KeyEvent.CTRL_MASK));
+		cutItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_X, KeyEvent.CTRL_MASK));
+		pasteItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_V, KeyEvent.CTRL_MASK));
+		selectAllItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_A, KeyEvent.CTRL_MASK));
+		
+		menuItems.add(newItem);
+		menuItems.add(openItem);
+		menuItems.add(saveItem);
+		menuItems.add(saveAsItem);
+		menuItems.add(closeItem);
+		menuItems.add(cutItem);
+		menuItems.add(copyItem);
+		menuItems.add(pasteItem);
+		menuItems.add(selectAllItem);
+		return menuItems;
 	}
 	private void openFile(File target, File directory){
 		try{
@@ -203,6 +228,11 @@ public class MenuCreator {
 			makeSaveWarning(e);
 			if(!documentHasChanged)
 				System.exit(0);
+		}
+	}
+	class SelectAllAction extends AbstractAction{
+		public void actionPerformed(ActionEvent e){
+			pane.selectAll();
 		}
 	}
 	class RedTextDocumentListener implements DocumentListener{
