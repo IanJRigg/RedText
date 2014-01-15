@@ -25,9 +25,15 @@ import java.util.LinkedList;
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
+import javax.swing.event.UndoableEditEvent;
+import javax.swing.event.UndoableEditListener;
+import javax.swing.text.AbstractDocument;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.DefaultEditorKit;
 import javax.swing.text.Document;
+import javax.swing.undo.CannotRedoException;
+import javax.swing.undo.CannotUndoException;
+import javax.swing.undo.UndoManager;
 
 public class MenuCreator {
 	
@@ -37,23 +43,33 @@ public class MenuCreator {
 	private File directory;
 	private JMenuBar menuBar;
 	private JPopupMenu popMenu;
-	private JMenu fileMenu;
-	private JMenu editMenu;
 	private boolean documentHasChanged;
+	private UndoAction undoAction;
+	private RedoAction redoAction;
+	private UndoManager undo;
+	private AbstractDocument doc;
 		
 	public MenuCreator(JTextPane text, JFrame frame){
 		menuBar = new JMenuBar();
 		popMenu = new JPopupMenu();
-		fileMenu = new JMenu("File        ");
-		editMenu = new JMenu("Edit        ");
 		pane = text;
 		pane.getDocument().addDocumentListener(new RedTextDocumentListener());
 		documentHasChanged = false;
 		guiFrame = frame;
+		undo = new UndoManager();
+		undoAction = new UndoAction();
+		redoAction = new RedoAction();
+		Document styledDoc = pane.getDocument();
+		if (styledDoc instanceof AbstractDocument)
+            doc = (AbstractDocument)styledDoc;
+		doc.addUndoableEditListener(new RedTextUndoableEditListener());
 	}
 	public JMenuBar makeMenu(){
-		LinkedList<JMenuItem> items = makeMenuItems();
-		Iterator<JMenuItem> it = items.listIterator();
+		JMenu fileMenu = new JMenu("File        ");
+		JMenu editMenu = new JMenu("Edit        ");
+		JMenu spellMenu = new JMenu("Spelling        ");
+		LinkedList<JComponent> items = makeMenuItems();
+		Iterator<JComponent> it = items.listIterator();
 		int itemsCounter = 0;
 		while(itemsCounter < 4){
 			fileMenu.add(it.next());
@@ -61,21 +77,24 @@ public class MenuCreator {
 		}
 		fileMenu.add(new JSeparator());
 		fileMenu.add(it.next());
-		while(itemsCounter < 7){
+		while(itemsCounter < 9){
 			editMenu.add(it.next());
 			itemsCounter++;
 		}
 		editMenu.add(new JSeparator());
 		editMenu.add(it.next());
+		while(it.hasNext())
+			spellMenu.add(it.next());
 		menuBar.add(fileMenu);
 		menuBar.add(editMenu);
+		menuBar.add(spellMenu);
 		return menuBar;
 	}
 	public JPopupMenu makePopupMenu(){
 		return popMenu;
 	}
-	private LinkedList<JMenuItem> makeMenuItems(){
-		LinkedList<JMenuItem> menuItems = new LinkedList<JMenuItem>();
+	private LinkedList<JComponent> makeMenuItems(){
+		LinkedList<JComponent> menuItems = new LinkedList<JComponent>();
 		NewFileAction newAction = new NewFileAction();
 		OpenAction openAction = new OpenAction();
 		SaveAction saveAction = new SaveAction();
@@ -85,6 +104,10 @@ public class MenuCreator {
 		Action copyAction = new DefaultEditorKit.CopyAction();
 		Action pasteAction = new DefaultEditorKit.PasteAction();
 		SelectAllAction selectAction = new SelectAllAction();
+		CheckSpellingAction spellingAction = new CheckSpellingAction();
+		ReplaceDictionaryAction replaceDictionaryAction = new ReplaceDictionaryAction();
+		AddWordAction addWordAction = new AddWordAction();
+		RemoveWordAction removeWordAction = new RemoveWordAction();
 		
 		newAction.putValue(Action.NAME, "New");
 		openAction.putValue(Action.NAME, "Open");
@@ -95,6 +118,12 @@ public class MenuCreator {
 		copyAction.putValue(Action.NAME, "Copy");
 		pasteAction.putValue(Action.NAME, "Paste");
 		selectAction.putValue(Action.NAME, "Select All");
+		undoAction.putValue(Action.NAME, "Undo");
+		redoAction.putValue(Action.NAME, "Redo");
+		spellingAction.putValue(Action.NAME, "Check Spelling");
+		replaceDictionaryAction.putValue(Action.NAME, "Replace Dictionary");
+		addWordAction.putValue(Action.NAME, "Add Word to Dictionary");
+		removeWordAction.putValue(Action.NAME, "Remove Word From Dictionary");
 		
 		JMenuItem newItem = new JMenuItem(newAction);
 		JMenuItem openItem = new JMenuItem(openAction);
@@ -105,6 +134,8 @@ public class MenuCreator {
 		JMenuItem copyItem = new JMenuItem(copyAction);
 		JMenuItem pasteItem = new JMenuItem(pasteAction);
 		JMenuItem selectAllItem = new JMenuItem(selectAction);
+		JMenuItem undoItem = new JMenuItem(undoAction);
+		JMenuItem redoItem = new JMenuItem(redoAction);
 		
 		newItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_N, KeyEvent.CTRL_MASK));
 		openItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_O, ActionEvent.CTRL_MASK));
@@ -114,16 +145,25 @@ public class MenuCreator {
 		cutItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_X, KeyEvent.CTRL_MASK));
 		pasteItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_V, KeyEvent.CTRL_MASK));
 		selectAllItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_A, KeyEvent.CTRL_MASK));
+		undoItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_Z, KeyEvent.CTRL_MASK));
+		redoItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_Y, KeyEvent.CTRL_MASK));
 		
 		menuItems.add(newItem);
 		menuItems.add(openItem);
 		menuItems.add(saveItem);
 		menuItems.add(saveAsItem);
 		menuItems.add(closeItem);
+		menuItems.add(undoItem);
+		menuItems.add(redoItem);
 		menuItems.add(cutItem);
 		menuItems.add(copyItem);
 		menuItems.add(pasteItem);
 		menuItems.add(selectAllItem);
+		menuItems.add(new JMenuItem(spellingAction));
+		menuItems.add(new JMenuItem(addWordAction));
+		menuItems.add(new JMenuItem(removeWordAction));
+		menuItems.add(new JSeparator());
+		menuItems.add(new JMenuItem(replaceDictionaryAction));
 		return menuItems;
 	}
 	private void openFile(File target, File directory){
@@ -223,6 +263,11 @@ public class MenuCreator {
 			guiFrame.setTitle(target.getName());
 		}
 	}
+	class PrintAction extends AbstractAction{
+		public void actionPerformed(ActionEvent e){
+			
+		}
+	}
 	class CloseAction extends AbstractAction{ // Close Action is to be unextendable
 		public void actionPerformed(ActionEvent e){
 			makeSaveWarning(e);
@@ -230,9 +275,82 @@ public class MenuCreator {
 				System.exit(0);
 		}
 	}
+	class RedTextUndoableEditListener implements UndoableEditListener {
+		
+		public void undoableEditHappened(UndoableEditEvent e) {
+			undo.addEdit(e.getEdit());
+			undoAction.updateUndoState();
+			redoAction.updateRedoState();
+		}
+	}  
+	class UndoAction extends AbstractAction{
+		 public UndoAction() {
+	            super("Undo");
+	            setEnabled(false);
+	     }	
+		public void actionPerformed(ActionEvent ev){
+			try{
+				undo.undo();
+			}catch(CannotUndoException ex){}
+			
+			updateUndoState();
+			redoAction.updateRedoState();
+		}
+		protected void updateUndoState() {
+            if (undo.canUndo()) {
+                setEnabled(true);
+                putValue(Action.NAME, undo.getUndoPresentationName());
+            } else {
+                setEnabled(false);
+                putValue(Action.NAME, "Undo");
+            }
+        }
+	}
+	class RedoAction extends AbstractAction{
+		public RedoAction() {
+            super("Redo");
+            setEnabled(false);
+        }
+		public void actionPerformed(ActionEvent ev){
+			try{
+				undo.redo();
+			}catch(CannotRedoException ex){}	
+			updateRedoState();
+			undoAction.updateUndoState();
+		}
+		public void updateRedoState() {
+            if (undo.canRedo()) {
+                setEnabled(true);
+                putValue(Action.NAME, undo.getRedoPresentationName());
+            } else {
+                setEnabled(false);
+                putValue(Action.NAME, "Redo");
+            }
+        }	
+	}
 	class SelectAllAction extends AbstractAction{
 		public void actionPerformed(ActionEvent e){
 			pane.selectAll();
+		}
+	}
+	class CheckSpellingAction extends AbstractAction{
+		public void actionPerformed(ActionEvent e){
+			
+		}
+	}
+	class ReplaceDictionaryAction extends AbstractAction{
+		public void actionPerformed(ActionEvent e){
+			
+		}
+	}
+	class AddWordAction extends AbstractAction{
+		public void actionPerformed(ActionEvent e){
+			
+		}
+	}
+	class RemoveWordAction extends AbstractAction{
+		public void actionPerformed(ActionEvent e){
+			
 		}
 	}
 	class RedTextDocumentListener implements DocumentListener{
