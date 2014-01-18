@@ -18,8 +18,15 @@
  * 		RedTextDocumentListener
  */
 import java.awt.BorderLayout;
+import java.awt.Graphics;
 import java.awt.event.*;
+import java.awt.print.PageFormat;
+import java.awt.print.Printable;
+import java.awt.print.PrinterException;
+import java.awt.print.PrinterJob;
 import java.io.*;
+import java.util.ArrayList;
+import java.util.Hashtable;
 import java.util.Iterator;
 import java.util.LinkedList;
 import javax.swing.*;
@@ -37,6 +44,8 @@ import javax.swing.undo.UndoManager;
 
 public class MenuCreator {
 	
+	private final int buckets;
+	private Hashtable<Integer, ArrayList<String>> wordList;
 	private JTextPane pane;
 	private JFrame guiFrame;
 	private File target;
@@ -50,6 +59,7 @@ public class MenuCreator {
 	private AbstractDocument doc;
 		
 	public MenuCreator(JTextPane text, JFrame frame){
+		buckets = 50;
 		menuBar = new JMenuBar();
 		popMenu = new JPopupMenu();
 		pane = text;
@@ -63,6 +73,10 @@ public class MenuCreator {
 		if (styledDoc instanceof AbstractDocument)
             doc = (AbstractDocument)styledDoc;
 		doc.addUndoableEditListener(new RedTextUndoableEditListener());
+		wordList = new Hashtable<Integer, ArrayList<String>>();
+		for(int i = 0; i < buckets; i++)
+			wordList.put(i, new ArrayList<String>());
+		loadWordList("WordList.ser");
 	}
 	public JMenuBar makeMenu(){
 		JMenu fileMenu = new JMenu("File        ");
@@ -104,10 +118,6 @@ public class MenuCreator {
 		Action copyAction = new DefaultEditorKit.CopyAction();
 		Action pasteAction = new DefaultEditorKit.PasteAction();
 		SelectAllAction selectAction = new SelectAllAction();
-		CheckSpellingAction spellingAction = new CheckSpellingAction();
-		ReplaceDictionaryAction replaceDictionaryAction = new ReplaceDictionaryAction();
-		AddWordAction addWordAction = new AddWordAction();
-		RemoveWordAction removeWordAction = new RemoveWordAction();
 		
 		newAction.putValue(Action.NAME, "New");
 		openAction.putValue(Action.NAME, "Open");
@@ -120,10 +130,10 @@ public class MenuCreator {
 		selectAction.putValue(Action.NAME, "Select All");
 		undoAction.putValue(Action.NAME, "Undo");
 		redoAction.putValue(Action.NAME, "Redo");
-		spellingAction.putValue(Action.NAME, "Check Spelling");
-		replaceDictionaryAction.putValue(Action.NAME, "Replace Dictionary");
-		addWordAction.putValue(Action.NAME, "Add Word to Dictionary");
-		removeWordAction.putValue(Action.NAME, "Remove Word From Dictionary");
+		CheckSpellingAction spellingAction = new CheckSpellingAction();
+        ReplaceDictionaryAction replaceDictionaryAction = new ReplaceDictionaryAction();
+        AddWordAction addWordAction = new AddWordAction();
+        RemoveWordAction removeWordAction = new RemoveWordAction();
 		
 		JMenuItem newItem = new JMenuItem(newAction);
 		JMenuItem openItem = new JMenuItem(openAction);
@@ -136,6 +146,10 @@ public class MenuCreator {
 		JMenuItem selectAllItem = new JMenuItem(selectAction);
 		JMenuItem undoItem = new JMenuItem(undoAction);
 		JMenuItem redoItem = new JMenuItem(redoAction);
+		spellingAction.putValue(Action.NAME, "Check Spelling");
+        replaceDictionaryAction.putValue(Action.NAME, "Replace Dictionary");
+        addWordAction.putValue(Action.NAME, "Add Word to Dictionary");
+        removeWordAction.putValue(Action.NAME, "Remove Word From Dictionary");
 		
 		newItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_N, KeyEvent.CTRL_MASK));
 		openItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_O, ActionEvent.CTRL_MASK));
@@ -160,10 +174,10 @@ public class MenuCreator {
 		menuItems.add(pasteItem);
 		menuItems.add(selectAllItem);
 		menuItems.add(new JMenuItem(spellingAction));
-		menuItems.add(new JMenuItem(addWordAction));
-		menuItems.add(new JMenuItem(removeWordAction));
-		menuItems.add(new JSeparator());
-		menuItems.add(new JMenuItem(replaceDictionaryAction));
+        menuItems.add(new JMenuItem(addWordAction));
+        menuItems.add(new JMenuItem(removeWordAction));
+        menuItems.add(new JSeparator());
+        menuItems.add(new JMenuItem(replaceDictionaryAction));
 		return menuItems;
 	}
 	private void openFile(File target, File directory){
@@ -211,7 +225,38 @@ public class MenuCreator {
 				documentHasChanged = true;
 		}
 	}
-	
+	private int stringHash(String word){
+		int counter = 0;
+		for(int i = 0; i < word.length(); i++)
+			counter += (int)word.charAt(i);
+		return counter % buckets;
+	}
+	public void createWordList(String location) throws IOException{
+		FileReader reader = new FileReader(location);
+		BufferedReader bReader = new BufferedReader(reader);
+		String nextLine = null;
+		while((nextLine = bReader.readLine()) != null)
+			wordList.get(stringHash(nextLine)).add(nextLine);
+		bReader.close();
+	}
+	public void loadWordList(String location){
+		try{
+			ObjectInputStream is = new ObjectInputStream(new FileInputStream(location));
+			wordList = (Hashtable<Integer, ArrayList<String>>) is.readObject();
+		} catch(IOException ex) {
+			ex.printStackTrace();
+		} catch(ClassNotFoundException ex){
+			ex.printStackTrace();
+		}
+	}
+	public void saveWordList(){
+		try{
+			ObjectOutputStream os = new ObjectOutputStream(new FileOutputStream("WordList.ser"));
+			os.writeObject(wordList);
+		}catch(IOException ex){
+			ex.printStackTrace();
+		}
+	}
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	
 	class NewFileAction extends AbstractAction{	
@@ -230,8 +275,8 @@ public class MenuCreator {
 				JFileChooser fC = new JFileChooser();
 				int option = fC.showOpenDialog(null);
 				if(option == JFileChooser.APPROVE_OPTION){
-					File target = fC.getSelectedFile();
-					File directory = fC.getCurrentDirectory();
+					target = fC.getSelectedFile();
+					directory = fC.getCurrentDirectory();
 					pane.setText("");
 					openFile(target, directory);
 					guiFrame.setTitle(target.getName());
@@ -263,9 +308,21 @@ public class MenuCreator {
 			guiFrame.setTitle(target.getName());
 		}
 	}
-	class PrintAction extends AbstractAction{
+	class PrintAction extends AbstractAction implements Printable{
 		public void actionPerformed(ActionEvent e){
-			
+			PrinterJob job = PrinterJob.getPrinterJob();
+	        job.setPrintable(this);
+	        boolean toPrint = job.printDialog();
+	        if(toPrint){
+	            try {
+	                 job.print();
+	            } catch (PrinterException ex) {
+	            	 
+	            }
+	        }
+		}
+		public int print(Graphics graphics, PageFormat format, int page) throws PrinterException{
+			return 0;
 		}
 	}
 	class CloseAction extends AbstractAction{ // Close Action is to be unextendable
@@ -334,24 +391,42 @@ public class MenuCreator {
 		}
 	}
 	class CheckSpellingAction extends AbstractAction{
-		public void actionPerformed(ActionEvent e){
-			
-		}
+        public void actionPerformed(ActionEvent e){
+            String fullText = pane.getText();
+            String []text = fullText.split("\\s+");
+            for(String word : text){
+            	word = word.toLowerCase();
+            	if(!((ArrayList<String>)wordList.get(stringHash(word))).contains(word))
+            		System.out.println(word);
+            }
+        }
 	}
 	class ReplaceDictionaryAction extends AbstractAction{
-		public void actionPerformed(ActionEvent e){
-			
-		}
+	    public void actionPerformed(ActionEvent e){
+	    	JFileChooser fC = new JFileChooser();
+			int option = fC.showOpenDialog(null);
+			if(option != JFileChooser.APPROVE_OPTION)
+				return;			
+			File replaceTarget = fC.getSelectedFile();
+			File replaceDirectory = fC.getCurrentDirectory();
+			for(int i = 0; i < buckets; i++)
+				wordList.get(new Integer(i)).clear();
+			try {
+				createWordList(replaceDirectory.getCanonicalPath() + "//" + replaceTarget.getName());
+			} catch (IOException ex) {
+				ex.printStackTrace();
+			}
+	    }
 	}
 	class AddWordAction extends AbstractAction{
-		public void actionPerformed(ActionEvent e){
-			
-		}
+	    public void actionPerformed(ActionEvent e){
+	                
+	    }
 	}
 	class RemoveWordAction extends AbstractAction{
-		public void actionPerformed(ActionEvent e){
-			
-		}
+	    public void actionPerformed(ActionEvent e){
+	                
+	    }
 	}
 	class RedTextDocumentListener implements DocumentListener{
 		public void insertUpdate(DocumentEvent e) {
