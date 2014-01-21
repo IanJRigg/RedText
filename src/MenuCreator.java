@@ -18,6 +18,7 @@
  * 		RedTextDocumentListener
  */
 import java.awt.BorderLayout;
+import java.awt.Color;
 import java.awt.Graphics;
 import java.awt.event.*;
 import java.awt.print.PageFormat;
@@ -35,9 +36,13 @@ import javax.swing.event.DocumentListener;
 import javax.swing.event.UndoableEditEvent;
 import javax.swing.event.UndoableEditListener;
 import javax.swing.text.AbstractDocument;
+import javax.swing.text.AttributeSet;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.DefaultEditorKit;
+import javax.swing.text.DefaultStyledDocument;
 import javax.swing.text.Document;
+import javax.swing.text.StyleConstants;
+import javax.swing.text.StyleContext;
 import javax.swing.undo.CannotRedoException;
 import javax.swing.undo.CannotUndoException;
 import javax.swing.undo.UndoManager;
@@ -56,23 +61,22 @@ public class MenuCreator {
 	private UndoAction undoAction;
 	private RedoAction redoAction;
 	private UndoManager undo;
-	private AbstractDocument doc;
+	private RedTextStyledDocument redTextSD;
 		
 	public MenuCreator(JTextPane text, JFrame frame){
 		buckets = 50;
 		menuBar = new JMenuBar();
 		popMenu = new JPopupMenu();
+	    redTextSD = new RedTextStyledDocument();
 		pane = text;
-		pane.getDocument().addDocumentListener(new RedTextDocumentListener());
+		pane.setDocument(redTextSD);
+		redTextSD.addDocumentListener(new RedTextDocumentListener());
+		redTextSD.addUndoableEditListener(new RedTextUndoableEditListener());
 		documentHasChanged = false;
 		guiFrame = frame;
 		undo = new UndoManager();
 		undoAction = new UndoAction();
 		redoAction = new RedoAction();
-		Document styledDoc = pane.getDocument();
-		if (styledDoc instanceof AbstractDocument)
-            doc = (AbstractDocument)styledDoc;
-		doc.addUndoableEditListener(new RedTextUndoableEditListener());
 		wordList = new Hashtable<Integer, ArrayList<String>>();
 		for(int i = 0; i < buckets; i++)
 			wordList.put(i, new ArrayList<String>());
@@ -185,15 +189,18 @@ public class MenuCreator {
 			FileReader reader = new FileReader(directory.getCanonicalPath() + "\\" + target.getName());
 			BufferedReader bReader = new BufferedReader(reader);
 			String nextLine = null;
+			Document doc = new DefaultStyledDocument();
+			long start = System.currentTimeMillis();
 			while((nextLine = bReader.readLine()) != null){
 				try {
-				      Document doc = pane.getDocument();
 				      doc.insertString(doc.getLength(), nextLine + "\n", null);
 				} catch(BadLocationException e) {
 				      e.printStackTrace();
 				}
 			}
 			bReader.close();
+			pane.setDocument(doc);
+			System.out.println(System.currentTimeMillis() - start);
 		}catch(IOException ex){
 			ex.printStackTrace();
 		}
@@ -231,7 +238,7 @@ public class MenuCreator {
 			counter += (int)word.charAt(i);
 		return counter % buckets;
 	}
-	public void createWordList(String location) throws IOException{
+	private void createWordList(String location) throws IOException{
 		FileReader reader = new FileReader(location);
 		BufferedReader bReader = new BufferedReader(reader);
 		String nextLine = null;
@@ -239,7 +246,7 @@ public class MenuCreator {
 			wordList.get(stringHash(nextLine)).add(nextLine);
 		bReader.close();
 	}
-	public void loadWordList(String location){
+	private void loadWordList(String location){
 		try{
 			ObjectInputStream is = new ObjectInputStream(new FileInputStream(location));
 			wordList = (Hashtable<Integer, ArrayList<String>>) is.readObject();
@@ -249,13 +256,79 @@ public class MenuCreator {
 			ex.printStackTrace();
 		}
 	}
-	public void saveWordList(){
+	private void saveWordList(){
 		try{
 			ObjectOutputStream os = new ObjectOutputStream(new FileOutputStream("WordList.ser"));
 			os.writeObject(wordList);
 		}catch(IOException ex){
 			ex.printStackTrace();
 		}
+	}
+	private int binarySearch(String[] words, String target){
+		if(words.length == 0)
+			return -1;
+		int mid, low, high, temp;
+		low = 0;
+		high = words.length - 1;
+		mid = (low + high) / 2;
+		temp = 0;
+		while(low <= high){
+			temp = words[mid].compareTo(target);
+			if(temp < 0){
+				low = mid;
+				mid = (low + high) / 2;
+			}
+			else if(temp > 0){
+				high = mid;
+				mid = (low + high) / 2;
+			}
+			else
+				return mid;
+		}
+		return -1;
+	}
+	private int inserBinarySearch(String[] words, String target){
+		if(words.length == 0)
+			return -1;
+		int mid, low, high, temp;
+		low = 0;
+		high = words.length - 1;
+		mid = (low + high) / 2;
+		temp = 0;
+		while(mid != low){
+			temp = words[mid].compareTo(target);
+			if(temp < 0){
+				low = mid;
+				mid = (low + high) / 2;
+			}
+			else if(temp > 0){
+				high = mid;
+				mid = (low + high) / 2;
+			}
+			else
+				return -1;
+		}
+		return mid;
+	}
+	public void warningDialog(ActionEvent e, String message){
+		String[] options = {"OK"};
+		JPanel panel = new JPanel();
+		JLabel lbl = new JLabel(message);
+		panel.add(lbl);
+		int selectedOption = JOptionPane.showOptionDialog(null, panel, "The Title",
+				JOptionPane.NO_OPTION, JOptionPane.INFORMATION_MESSAGE, null, options , options[0]);
+
+	}
+	private String getWord(ActionEvent e){
+		String[] options = {"OK"};
+		JPanel panel = new JPanel();
+		JLabel lbl = new JLabel("Enter the word: ");
+		JTextField txt = new JTextField(10);
+		panel.add(lbl);
+		panel.add(txt);
+		int selectedOption = JOptionPane.showOptionDialog(null, panel, "The Title", JOptionPane.NO_OPTION, JOptionPane.QUESTION_MESSAGE, null, options , options[0]);
+		System.out.println(txt.getText());
+		return txt.getText();
 	}
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	
@@ -393,7 +466,7 @@ public class MenuCreator {
 	class CheckSpellingAction extends AbstractAction{
         public void actionPerformed(ActionEvent e){
             String fullText = pane.getText();
-            String []text = fullText.split("\\s+");
+            String []text = fullText.replaceAll("[^a-zA-Z ]", "").toLowerCase().split("\\s+");
             for(String word : text){
             	word = word.toLowerCase();
             	if(!((ArrayList<String>)wordList.get(stringHash(word))).contains(word))
@@ -407,10 +480,10 @@ public class MenuCreator {
 			int option = fC.showOpenDialog(null);
 			if(option != JFileChooser.APPROVE_OPTION)
 				return;			
-			File replaceTarget = fC.getSelectedFile();
-			File replaceDirectory = fC.getCurrentDirectory();
 			for(int i = 0; i < buckets; i++)
 				wordList.get(new Integer(i)).clear();
+			File replaceTarget = fC.getSelectedFile();
+			File replaceDirectory = fC.getCurrentDirectory();
 			try {
 				createWordList(replaceDirectory.getCanonicalPath() + "//" + replaceTarget.getName());
 			} catch (IOException ex) {
@@ -420,12 +493,32 @@ public class MenuCreator {
 	}
 	class AddWordAction extends AbstractAction{
 	    public void actionPerformed(ActionEvent e){
-	                
+	    	String toInsert = getWord(e);
+	    	ArrayList<String> temp = wordList.get(stringHash(toInsert));
+	        int index = inserBinarySearch(temp.toArray(new String[temp.size()]), toInsert);
+	        if(index == -1){
+	        	warningDialog(e, "The word you are looking for is already in the Dictionary");
+	        	return;
+	        }
+	        if(temp.get(index).compareTo(toInsert) < 0)
+	        	temp.add(index + 1, toInsert);
+	        else
+	        	temp.add(index, toInsert);
 	    }
 	}
 	class RemoveWordAction extends AbstractAction{
 	    public void actionPerformed(ActionEvent e){
-	                
+	    	String wordToRemove = getWord(e);
+	    	ArrayList<String> temp = wordList.get(stringHash(wordToRemove));
+	        System.out.println(temp.toString());
+	        int index = binarySearch(temp.toArray(new String[temp.size()]), wordToRemove);
+	        if(index == -1){
+	        	warningDialog(e, "The word entered is not in the dictionary");
+	        	System.out.println(wordList.get(stringHash("a")).get(1));
+	        	return;
+	        }
+	        temp.set(index, temp.get(index) + "!");
+	        System.out.println(temp.get(index));
 	    }
 	}
 	class RedTextDocumentListener implements DocumentListener{
@@ -439,4 +532,69 @@ public class MenuCreator {
         	documentHasChanged = true;
         }
 	}
+	class RedTextStyledDocument extends DefaultStyledDocument{
+		final StyleContext cont;
+        final AttributeSet attr;
+        final AttributeSet attrBlack;
+        
+        public RedTextStyledDocument(){
+        	cont = StyleContext.getDefaultStyleContext();
+        	attr = cont.addAttribute(cont.getEmptySet(), StyleConstants.Foreground, Color.RED);
+        	attrBlack = cont.addAttribute(cont.getEmptySet(), StyleConstants.Foreground, Color.BLACK);
+        }
+        public void insertString (int offset, String str, AttributeSet a) throws BadLocationException {
+            super.insertString(offset, str, a);
+
+            String text = getText(0, getLength());
+            int before = findLastNonWordChar(text, offset);
+            if (before < 0) before = 0;
+            int after = findFirstNonWordChar(text, offset + str.length());
+            int wordL = before;
+            int wordR = before;
+            String temp = text.substring(before, after);
+            boolean incor;
+            while (wordR <= after) {
+            	incor = wordList.get(stringHash(temp)).contains(temp);
+                if (wordR == after || String.valueOf(text.charAt(wordR)).matches("\\W")) {
+                    if (incor)
+                        setCharacterAttributes(wordL, wordR - wordL, attr, false);
+                    else
+                        setCharacterAttributes(wordL, wordR - wordL, attrBlack, false);
+                    wordL = wordR;
+                }
+                wordR++;
+            }
+        } 
+        public void remove (int offs, int len) throws BadLocationException {
+            super.remove(offs, len);
+            String text = getText(0, getLength());
+            int before = findLastNonWordChar(text, offs);
+            if (before < 0) before = 0;
+            int after = findFirstNonWordChar(text, offs); 
+            String temp = text.substring(before, after);
+            boolean incor = wordList.get(stringHash(temp)).contains(temp);
+            if (incor) {
+                setCharacterAttributes(before, after - before, attr, false);
+            } else {
+                setCharacterAttributes(before, after - before, attrBlack, false);
+            }
+        }
+        private int findLastNonWordChar (String text, int index) {
+            while (--index >= 0) {
+                if (String.valueOf(text.charAt(index)).matches("\\W")) break;
+            }
+            // Iterate through the text to find the last character that isn't a-z,A-Z or 0-9
+            return index;
+        }
+
+        private int findFirstNonWordChar (String text, int index) {
+            while (index < text.length()) {
+                if (String.valueOf(text.charAt(index)).matches("\\W")) break;
+                index++;
+                //starting from index, advance until you find a character that isn't a-z, A-Z, 0-9
+            }
+            return index;
+        }
+	}
+	
 }
