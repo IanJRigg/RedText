@@ -234,8 +234,11 @@ public class MenuCreator {
 	}
 	private int stringHash(String word){
 		int counter = 0;
-		for(int i = 0; i < word.length(); i++)
+		word = word.toLowerCase();
+		for(int i = 0; i < word.length(); i++){
+			if(word.charAt(i) == ' ') continue;
 			counter += (int)word.charAt(i);
+		}
 		return counter % buckets;
 	}
 	private void createWordList(String location) throws IOException{
@@ -543,23 +546,28 @@ public class MenuCreator {
         	attrBlack = cont.addAttribute(cont.getEmptySet(), StyleConstants.Foreground, Color.BLACK);
         }
         public void insertString (int offset, String str, AttributeSet a) throws BadLocationException {
-            super.insertString(offset, str, a);
-
+            super.insertString(offset, str, attr);
+       
             String text = getText(0, getLength());
             int before = findLastNonWordChar(text, offset);
             if (before < 0) before = 0;
             int after = findFirstNonWordChar(text, offset + str.length());
             int wordL = before;
             int wordR = before;
-            String temp = text.substring(before, after);
-            boolean incor;
+            boolean found;
+            String temp;
             while (wordR <= after) {
-            	incor = wordList.get(stringHash(temp)).contains(temp);
                 if (wordR == after || String.valueOf(text.charAt(wordR)).matches("\\W")) {
-                    if (incor)
-                        setCharacterAttributes(wordL, wordR - wordL, attr, false);
-                    else
+                	temp = text.substring(wordL, wordR).toLowerCase();
+                	System.out.println("temp :" + temp);
+                	System.out.println("Stringhash: " + stringHash(temp));
+                	found = wordList.get(stringHash(temp)).contains(stripSpace(temp)); // ERROR IS RIGHT HERE, if the string has a space in front, it won't be found with contains
+                	System.out.println("Found :" + found);
+                	System.out.println("wordList: " + wordList.get(stringHash("this")).contains("this") + "\n");
+                    if (found)
                         setCharacterAttributes(wordL, wordR - wordL, attrBlack, false);
+                    else
+                        setCharacterAttributes(wordL, wordR - wordL, attr, false);
                     wordL = wordR;
                 }
                 wordR++;
@@ -572,8 +580,9 @@ public class MenuCreator {
             if (before < 0) before = 0;
             int after = findFirstNonWordChar(text, offs); 
             String temp = text.substring(before, after);
-            boolean incor = wordList.get(stringHash(temp)).contains(temp);
-            if (incor) {
+            if(temp.charAt(0) == ' ') temp = temp.substring(1);
+            boolean found = wordList.get(stringHash(temp)).contains(temp);
+            if (!found) {
                 setCharacterAttributes(before, after - before, attr, false);
             } else {
                 setCharacterAttributes(before, after - before, attrBlack, false);
@@ -594,6 +603,22 @@ public class MenuCreator {
                 //starting from index, advance until you find a character that isn't a-z, A-Z, 0-9
             }
             return index;
+        }
+        private String stripSpace(String word){
+        	if(word.isEmpty()) return word;
+    
+        	char temp;
+        	int index;
+        	index = 0;
+        	while(index < word.length() && String.valueOf((temp = word.charAt(index))).matches("(\\W)"))
+        		index++;
+        	if(index == 0) return word;
+        	StringBuilder sBuilder = new StringBuilder();
+        	while(index < word.length()){
+        		sBuilder.append(word.charAt(index));
+        		index++;
+        	}
+        	return sBuilder.toString();
         }
 	}
 	
