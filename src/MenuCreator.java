@@ -30,6 +30,9 @@ import java.util.ArrayList;
 import java.util.Hashtable;
 import java.util.Iterator;
 import java.util.LinkedList;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
@@ -134,7 +137,6 @@ public class MenuCreator {
 		selectAction.putValue(Action.NAME, "Select All");
 		undoAction.putValue(Action.NAME, "Undo");
 		redoAction.putValue(Action.NAME, "Redo");
-		CheckSpellingAction spellingAction = new CheckSpellingAction();
         ReplaceDictionaryAction replaceDictionaryAction = new ReplaceDictionaryAction();
         AddWordAction addWordAction = new AddWordAction();
         RemoveWordAction removeWordAction = new RemoveWordAction();
@@ -150,7 +152,6 @@ public class MenuCreator {
 		JMenuItem selectAllItem = new JMenuItem(selectAction);
 		JMenuItem undoItem = new JMenuItem(undoAction);
 		JMenuItem redoItem = new JMenuItem(redoAction);
-		spellingAction.putValue(Action.NAME, "Check Spelling");
         replaceDictionaryAction.putValue(Action.NAME, "Replace Dictionary");
         addWordAction.putValue(Action.NAME, "Add Word to Dictionary");
         removeWordAction.putValue(Action.NAME, "Remove Word From Dictionary");
@@ -177,7 +178,6 @@ public class MenuCreator {
 		menuItems.add(copyItem);
 		menuItems.add(pasteItem);
 		menuItems.add(selectAllItem);
-		menuItems.add(new JMenuItem(spellingAction));
         menuItems.add(new JMenuItem(addWordAction));
         menuItems.add(new JMenuItem(removeWordAction));
         menuItems.add(new JSeparator());
@@ -235,10 +235,8 @@ public class MenuCreator {
 	private int stringHash(String word){
 		int counter = 0;
 		word = word.toLowerCase();
-		for(int i = 0; i < word.length(); i++){
-			if(word.charAt(i) == ' ') continue;
+		for(int i = 0; i < word.length(); i++)
 			counter += (int)word.charAt(i);
-		}
 		return counter % buckets;
 	}
 	private void createWordList(String location) throws IOException{
@@ -466,17 +464,6 @@ public class MenuCreator {
 			pane.selectAll();
 		}
 	}
-	class CheckSpellingAction extends AbstractAction{
-        public void actionPerformed(ActionEvent e){
-            String fullText = pane.getText();
-            String []text = fullText.replaceAll("[^a-zA-Z ]", "").toLowerCase().split("\\s+");
-            for(String word : text){
-            	word = word.toLowerCase();
-            	if(!((ArrayList<String>)wordList.get(stringHash(word))).contains(word))
-            		System.out.println(word);
-            }
-        }
-	}
 	class ReplaceDictionaryAction extends AbstractAction{
 	    public void actionPerformed(ActionEvent e){
 	    	JFileChooser fC = new JFileChooser();
@@ -547,76 +534,91 @@ public class MenuCreator {
         }
         public void insertString (int offset, String str, AttributeSet a) throws BadLocationException {
             super.insertString(offset, str, attr);
-       
+            
             String text = getText(0, getLength());
-            int before = findLastNonWordChar(text, offset);
-            if (before < 0) before = 0;
-            int after = findFirstNonWordChar(text, offset + str.length());
-            int wordL = before;
-            int wordR = before;
-            boolean found;
-            String temp;
-            while (wordR <= after) {
-                if (wordR == after || String.valueOf(text.charAt(wordR)).matches("\\W")) {
-                	temp = text.substring(wordL, wordR).toLowerCase();
-                	System.out.println("temp :" + temp);
-                	System.out.println("Stringhash: " + stringHash(temp));
-                	found = wordList.get(stringHash(temp)).contains(stripSpace(temp)); // ERROR IS RIGHT HERE, if the string has a space in front, it won't be found with contains
-                	System.out.println("Found :" + found);
-                	System.out.println("wordList: " + wordList.get(stringHash("this")).contains("this") + "\n");
-                    if (found)
-                        setCharacterAttributes(wordL, wordR - wordL, attrBlack, false);
-                    else
-                        setCharacterAttributes(wordL, wordR - wordL, attr, false);
-                    wordL = wordR;
-                }
-                wordR++;
+            if(str.compareTo(" ") == 0){
+            	if(offset == 0 || offset == text.length() - 1) return;
+            	int firstWordStart = findStart(text, offset);
+            	if(firstWordStart == -1) firstWordStart = 0;
+            	int secondWordEnd = findEnd(text, offset);
+            	String firstWord = text.substring(firstWordStart, offset - 1);
+            	String secondWord = text.substring(offset + 1, secondWordEnd);
+            	System.out.println(firstWord + " " + secondWord);
+            	if(!checkSpelling(firstWord))
+            		setCharacterAttributes(firstWordStart, offset, attr, false);
+            	if(!checkSpelling(secondWord))
+            		setCharacterAttributes(offset, secondWordEnd, attr, false);
+            	return;
             }
+            int start = findStart(text, offset);
+            if(start == -1) start = 0;
+            int end = findEnd(text, offset);
+            String word = text.substring(start, end);
+            System.out.println(word);
+            if(checkSpelling(word)){
+            	System.out.println("Spelling went through");
+            	setCharacterAttributes(start, end, attrBlack, false);
+            }
+            return;
+            
         } 
         public void remove (int offs, int len) throws BadLocationException {
             super.remove(offs, len);
+            System.out.println(offs);
             String text = getText(0, getLength());
-            int before = findLastNonWordChar(text, offs);
+            int before = findStart(text, offs);
             if (before < 0) before = 0;
-            int after = findFirstNonWordChar(text, offs); 
+            int after = findEnd(text, offs); 
+            if(after < 0) after = 0;
             String temp = text.substring(before, after);
-            if(temp.charAt(0) == ' ') temp = temp.substring(1);
-            boolean found = wordList.get(stringHash(temp)).contains(temp);
-            if (!found) {
+            if (!checkSpelling(temp)) {
                 setCharacterAttributes(before, after - before, attr, false);
             } else {
                 setCharacterAttributes(before, after - before, attrBlack, false);
             }
         }
-        private int findLastNonWordChar (String text, int index) {
-            while (--index >= 0) {
-                if (String.valueOf(text.charAt(index)).matches("\\W")) break;
+        private int findStart (String text, int index) {
+            if(index == 0 ) return index;
+            if(index >= text.length() || String.valueOf(text.charAt(index)).matches(" ")) index--;
+            while(index >= 0){
+            	if (String.valueOf(text.charAt(index)).matches(" ")) break;
+            	index--;
             }
-            // Iterate through the text to find the last character that isn't a-z,A-Z or 0-9
             return index;
         }
 
-        private int findFirstNonWordChar (String text, int index) {
+        private int findEnd (String text, int index) {
+        	if(index >= text.length())return text.length();
+        	index++;
             while (index < text.length()) {
-                if (String.valueOf(text.charAt(index)).matches("\\W")) break;
+                if (String.valueOf(text.charAt(index)).matches(" ")){
+                	index--;
+                	break;
+                }
                 index++;
-                //starting from index, advance until you find a character that isn't a-z, A-Z, 0-9
             }
             return index;
         }
-        private String stripSpace(String word){
-        	if(word.isEmpty()) return word;
-    
-        	char temp;
-        	int index;
-        	index = 0;
-        	while(index < word.length() && String.valueOf((temp = word.charAt(index))).matches("(\\W)"))
-        		index++;
-        	if(index == 0) return word;
+        private boolean checkSpelling(String word){
+        	String temp = stripNonAlpha(word).toLowerCase();
+        	System.out.println("Temp: " + temp);
+        	return wordList.get(stringHash(temp)).contains(temp);
+        }
+        private String stripNonAlpha(String word){
+        	int start = 0;
+        	int end = word.length() - 1;
+        	while(start < word.length()){
+        		if(!String.valueOf(word.charAt(start)).matches("\\W")) break;
+        		start++;
+        	}
+        	while(end > 0){
+        		if(!String.valueOf(word.charAt(end)).matches("\\W")) break;
+        		end--;
+        	}
         	StringBuilder sBuilder = new StringBuilder();
-        	while(index < word.length()){
-        		sBuilder.append(word.charAt(index));
-        		index++;
+        	while(start <= end){
+        	    sBuilder.append(word.charAt(start));
+        	    start++;
         	}
         	return sBuilder.toString();
         }
