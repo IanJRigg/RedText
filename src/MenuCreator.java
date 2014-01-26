@@ -331,6 +331,17 @@ public class MenuCreator {
 		System.out.println(txt.getText());
 		return txt.getText();
 	}
+	private void serializeWordList(){
+		try{
+	         FileOutputStream fileOut = new FileOutputStream("WordList.ser");
+	         ObjectOutputStream out = new ObjectOutputStream(fileOut);
+	         out.writeObject(wordList);
+	         out.close();
+	         fileOut.close();
+	      }catch(IOException i){
+	          i.printStackTrace();
+	      }
+	}
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	
 	class NewFileAction extends AbstractAction{	
@@ -494,6 +505,7 @@ public class MenuCreator {
 	        	temp.add(index + 1, toInsert);
 	        else
 	        	temp.add(index, toInsert);
+	        serializeWordList();
 	    }
 	}
 	class RemoveWordAction extends AbstractAction{
@@ -504,11 +516,10 @@ public class MenuCreator {
 	        int index = binarySearch(temp.toArray(new String[temp.size()]), wordToRemove);
 	        if(index == -1){
 	        	warningDialog(e, "The word entered is not in the dictionary");
-	        	System.out.println(wordList.get(stringHash("a")).get(1));
 	        	return;
 	        }
-	        temp.set(index, temp.get(index) + "!");
-	        System.out.println(temp.get(index));
+	        temp.remove(temp.get(index));
+	        serializeWordList();
 	    }
 	}
 	class RedTextDocumentListener implements DocumentListener{
@@ -536,35 +547,36 @@ public class MenuCreator {
             super.insertString(offset, str, attr);
             
             String text = getText(0, getLength());
-            if(str.compareTo(" ") == 0){
+            if(str.compareTo("\\s") == 0){
             	if(offset == 0 || offset == text.length() - 1) return;
             	int firstWordStart = findStart(text, offset);
             	if(firstWordStart == -1) firstWordStart = 0;
             	int secondWordEnd = findEnd(text, offset);
             	String firstWord = text.substring(firstWordStart, offset - 1);
             	String secondWord = text.substring(offset + 1, secondWordEnd);
-            	System.out.println(firstWord + " " + secondWord);
             	if(!checkSpelling(firstWord))
             		setCharacterAttributes(firstWordStart, offset, attr, false);
+            	else
+            		setCharacterAttributes(firstWordStart, offset, attrBlack, false);
             	if(!checkSpelling(secondWord))
             		setCharacterAttributes(offset, secondWordEnd, attr, false);
+            	else
+            		setCharacterAttributes(offset, secondWordEnd, attrBlack, false);
             	return;
             }
             int start = findStart(text, offset);
             if(start == -1) start = 0;
             int end = findEnd(text, offset);
             String word = text.substring(start, end);
-            System.out.println(word);
-            if(checkSpelling(word)){
-            	System.out.println("Spelling went through");
+            if(checkSpelling(word))
             	setCharacterAttributes(start, end, attrBlack, false);
-            }
+            else
+            	setCharacterAttributes(start, end, attr, false);
             return;
             
         } 
         public void remove (int offs, int len) throws BadLocationException {
             super.remove(offs, len);
-            System.out.println(offs);
             String text = getText(0, getLength());
             int before = findStart(text, offs);
             if (before < 0) before = 0;
@@ -579,9 +591,9 @@ public class MenuCreator {
         }
         private int findStart (String text, int index) {
             if(index == 0 ) return index;
-            if(index >= text.length() || String.valueOf(text.charAt(index)).matches(" ")) index--;
+            if(index >= text.length() || String.valueOf(text.charAt(index)).matches("\\s")) index--;
             while(index >= 0){
-            	if (String.valueOf(text.charAt(index)).matches(" ")) break;
+            	if (String.valueOf(text.charAt(index)).matches("\\s")) break;
             	index--;
             }
             return index;
@@ -591,7 +603,7 @@ public class MenuCreator {
         	if(index >= text.length())return text.length();
         	index++;
             while (index < text.length()) {
-                if (String.valueOf(text.charAt(index)).matches(" ")){
+                if (String.valueOf(text.charAt(index)).matches("\\s")){
                 	index--;
                 	break;
                 }
@@ -601,7 +613,6 @@ public class MenuCreator {
         }
         private boolean checkSpelling(String word){
         	String temp = stripNonAlpha(word).toLowerCase();
-        	System.out.println("Temp: " + temp);
         	return wordList.get(stringHash(temp)).contains(temp);
         }
         private String stripNonAlpha(String word){
@@ -623,5 +634,4 @@ public class MenuCreator {
         	return sBuilder.toString();
         }
 	}
-	
 }
